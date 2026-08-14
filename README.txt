@@ -46,3 +46,5 @@ Security:
 - Reads are public because children need to view the approved list without logging in.
 - Adding, importing, and deleting videos requires ADMIN_PIN on the Worker.
 - Do NOT put the ADMIN_PIN inside GitHub files.
+
+Cloud sync setup
