@@ -9,6 +9,8 @@ const categories = [
 ];
 
 const starterVideos = [];
+const MAX_VIDEO_VOLUME = 50;
+const DEFAULT_VIDEO_VOLUME = 35;
 
 let videos = JSON.parse(localStorage.getItem('kidssite_videos') || 'null') || starterVideos;
 let currentCategory = 'all';
@@ -17,6 +19,14 @@ let timerMinutes = Number(localStorage.getItem('kidssite_timer') || 0);
 let remainingSeconds = timerMinutes * 60;
 let countdownId = null;
 let viewingLocked = localStorage.getItem('kidssite_locked') === 'true';
+let player = null;
+let playerReady = false;
+let pendingVideo = null;
+let isMuted = false;
+let savedVolume = Math.min(
+  MAX_VIDEO_VOLUME,
+  Math.max(0, Number(localStorage.getItem('kidssite_volume') || DEFAULT_VIDEO_VOLUME))
+);
 
 const $ = (id) => document.getElementById(id);
 const categoriesEl = $('categories');
@@ -25,13 +35,14 @@ const emptyState = $('emptyState');
 const sectionTitle = $('sectionTitle');
 const videoCount = $('videoCount');
 const playerModal = $('playerModal');
-const playerFrame = $('playerFrame');
 const playerTitle = $('playerTitle');
 const timerLabel = $('timerLabel');
 const parentModal = $('parentModal');
 const pinGate = $('pinGate');
 const parentPanel = $('parentPanel');
 const timeUpOverlay = $('timeUpOverlay');
+const volumeSlider = $('volumeSlider');
+const volumeValue = $('volumeValue');
 
 function saveVideos() {
   localStorage.setItem('kidssite_videos', JSON.stringify(videos));
@@ -98,23 +109,154 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// YouTube IFrame API calls this function automatically when it finishes loading.
+window.onYouTubeIframeAPIReady = function () {
+  const playerVars = {
+    controls: 0,
+    disablekb: 1,
+    fs: 0,
+    rel: 0,
+    playsinline: 1,
+    iv_load_policy: 3,
+    autoplay: 1
+  };
+
+  if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+    playerVars.origin = window.location.origin;
+  }
+
+  player = new YT.Player('ytPlayer', {
+    width: '100%',
+    height: '100%',
+    host: 'https://www.youtube-nocookie.com',
+    playerVars,
+    events: {
+      onReady: onPlayerReady,
+      onStateChange: onPlayerStateChange
+    }
+  });
+};
+
+function onPlayerReady() {
+  playerReady = true;
+  enforceVolumeCap(savedVolume);
+  updateVolumeUI(savedVolume);
+
+  if (pendingVideo) {
+    loadApprovedVideo(pendingVideo);
+    pendingVideo = null;
+  }
+}
+
+function onPlayerStateChange(event) {
+  if (!window.YT) return;
+  if (event.data === YT.PlayerState.PLAYING) {
+    $('playPauseBtn').innerHTML = '⏸ <span>Pause</span>';
+    enforceVolumeCap();
+  } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+    $('playPauseBtn').innerHTML = '▶ <span>Play</span>';
+  }
+}
+
 function openVideo(video) {
   if (viewingLocked) {
     timeUpOverlay.classList.remove('hidden');
     return;
   }
+
   playerTitle.textContent = video.title;
-  playerFrame.src = `https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`;
   playerModal.classList.remove('hidden');
   playerModal.setAttribute('aria-hidden', 'false');
+
+  if (playerReady) loadApprovedVideo(video);
+  else pendingVideo = video;
+
   if (timerMinutes > 0 && !countdownId) startCountdown();
   updateTimerLabel();
 }
 
+function loadApprovedVideo(video) {
+  if (!playerReady || !player) return;
+  player.loadVideoById(video.id);
+  enforceVolumeCap(savedVolume);
+  if (isMuted) player.mute();
+}
+
 function closeVideo() {
-  playerFrame.src = '';
+  pendingVideo = null;
+  if (playerReady && player) player.stopVideo();
   playerModal.classList.add('hidden');
   playerModal.setAttribute('aria-hidden', 'true');
+}
+
+function enforceVolumeCap(requestedVolume) {
+  if (!playerReady || !player) return;
+  const current = typeof requestedVolume === 'number' ? requestedVolume : player.getVolume();
+  const safeVolume = Math.min(MAX_VIDEO_VOLUME, Math.max(0, Number(current) || 0));
+  player.setVolume(safeVolume);
+  savedVolume = safeVolume;
+  localStorage.setItem('kidssite_volume', String(safeVolume));
+  updateVolumeUI(safeVolume);
+}
+
+function updateVolumeUI(volume) {
+  const safeVolume = Math.min(MAX_VIDEO_VOLUME, Math.max(0, Number(volume) || 0));
+  volumeSlider.value = String(safeVolume);
+  volumeValue.textContent = `${safeVolume}%`;
+}
+
+function setVideoVolume(volume) {
+  const safeVolume = Math.min(MAX_VIDEO_VOLUME, Math.max(0, Number(volume) || 0));
+  savedVolume = safeVolume;
+  localStorage.setItem('kidssite_volume', String(safeVolume));
+  updateVolumeUI(safeVolume);
+
+  if (playerReady && player) {
+    player.setVolume(safeVolume);
+    if (safeVolume > 0 && isMuted) {
+      player.unMute();
+      isMuted = false;
+      $('muteBtn').innerHTML = '🔊 <span>Sound</span>';
+    }
+  }
+}
+
+function togglePlayPause() {
+  if (!playerReady || !player || !window.YT) return;
+  const state = player.getPlayerState();
+  if (state === YT.PlayerState.PLAYING) player.pauseVideo();
+  else player.playVideo();
+}
+
+function skipSeconds(amount) {
+  if (!playerReady || !player) return;
+  const current = Number(player.getCurrentTime()) || 0;
+  const duration = Number(player.getDuration()) || 0;
+  const target = Math.max(0, duration ? Math.min(duration, current + amount) : current + amount);
+  player.seekTo(target, true);
+}
+
+function toggleMute() {
+  if (!playerReady || !player) return;
+  if (player.isMuted()) {
+    player.unMute();
+    enforceVolumeCap(savedVolume || DEFAULT_VIDEO_VOLUME);
+    isMuted = false;
+    $('muteBtn').innerHTML = '🔊 <span>Sound</span>';
+  } else {
+    player.mute();
+    isMuted = true;
+    $('muteBtn').innerHTML = '🔇 <span>Muted</span>';
+  }
+}
+
+function toggleFullscreen() {
+  const wrap = $('playerStage');
+  if (!document.fullscreenElement) {
+    if (wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {});
+  } else if (document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
 }
 
 function startCountdown() {
@@ -275,6 +417,19 @@ $('changePinBtn').addEventListener('click', changePin);
 $('closePlayer').addEventListener('click', closeVideo);
 $('homeBtn').addEventListener('click', closeVideo);
 $('parentUnlockFromTimeUp').addEventListener('click', openParentModal);
+$('playPauseBtn').addEventListener('click', togglePlayPause);
+$('back10Btn').addEventListener('click', () => skipSeconds(-10));
+$('forward10Btn').addEventListener('click', () => skipSeconds(10));
+$('muteBtn').addEventListener('click', toggleMute);
+$('fullscreenBtn').addEventListener('click', toggleFullscreen);
+volumeSlider.addEventListener('input', e => setVideoVolume(e.target.value));
+
+// Extra guard: even if script code requests a larger number, reset to 50% maximum.
+setInterval(() => {
+  if (playerReady && player && !player.isMuted() && player.getVolume() > MAX_VIDEO_VOLUME) {
+    enforceVolumeCap(MAX_VIDEO_VOLUME);
+  }
+}, 1000);
 
 document.querySelectorAll('.timer-option').forEach(btn => {
   btn.addEventListener('click', () => setTimer(Number(btn.dataset.minutes)));
@@ -287,4 +442,5 @@ populateCategorySelect();
 renderCategories();
 renderVideos();
 renderTimerOptions();
+updateVolumeUI(savedVolume);
 if (viewingLocked) timeUpOverlay.classList.remove('hidden');
