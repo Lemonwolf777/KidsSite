@@ -109,8 +109,25 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// YouTube IFrame API calls this function automatically when it finishes loading.
-window.onYouTubeIframeAPIReady = function () {
+// --- KidsSite v1.3: robust YouTube player setup ---
+let youtubeApiReady = !!(window.YT && window.YT.Player);
+let playerInitStarted = false;
+let currentVideo = null;
+let playerLoadTimeout = null;
+
+function setPlayerStatus(message, isError = false) {
+  const el = $('playerStatus');
+  if (!el) return;
+  el.textContent = message || '';
+  el.classList.toggle('error', !!isError);
+  el.classList.toggle('hidden', !message);
+}
+
+function createYouTubePlayer() {
+  if (player || playerInitStarted || !(window.YT && YT.Player)) return;
+  playerInitStarted = true;
+  setPlayerStatus('Loading video player…');
+
   const playerVars = {
     controls: 0,
     disablekb: 1,
@@ -118,43 +135,97 @@ window.onYouTubeIframeAPIReady = function () {
     rel: 0,
     playsinline: 1,
     iv_load_policy: 3,
-    autoplay: 1
+    autoplay: 0
   };
 
   if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
     playerVars.origin = window.location.origin;
   }
 
-  player = new YT.Player('ytPlayer', {
-    width: '100%',
-    height: '100%',
-    host: 'https://www.youtube-nocookie.com',
-    playerVars,
-    events: {
-      onReady: onPlayerReady,
-      onStateChange: onPlayerStateChange
+  try {
+    player = new YT.Player('ytPlayer', {
+      width: '100%',
+      height: '100%',
+      host: 'https://www.youtube-nocookie.com',
+      playerVars,
+      events: {
+        onReady: onPlayerReady,
+        onStateChange: onPlayerStateChange,
+        onError: onPlayerError
+      }
+    });
+  } catch (err) {
+    player = null;
+    playerInitStarted = false;
+    setPlayerStatus('The video player could not start. Refresh KidsSite and try again.', true);
+  }
+}
+
+function ensureYouTubePlayer() {
+  if (playerReady && player) return;
+
+  if (window.YT && YT.Player) {
+    youtubeApiReady = true;
+    createYouTubePlayer();
+    return;
+  }
+
+  setPlayerStatus('Loading video player…');
+  clearTimeout(playerLoadTimeout);
+  playerLoadTimeout = setTimeout(() => {
+    if (!playerReady) {
+      setPlayerStatus('YouTube is taking longer than expected. Check your internet, then refresh the page.', true);
     }
-  });
+  }, 8000);
+}
+
+// YouTube calls this when its IFrame API finishes loading.
+window.onYouTubeIframeAPIReady = function () {
+  youtubeApiReady = true;
+  if (currentVideo || pendingVideo) createYouTubePlayer();
 };
 
 function onPlayerReady() {
+  clearTimeout(playerLoadTimeout);
   playerReady = true;
+  playerInitStarted = false;
   enforceVolumeCap(savedVolume);
   updateVolumeUI(savedVolume);
 
-  if (pendingVideo) {
-    loadApprovedVideo(pendingVideo);
+  const videoToCue = pendingVideo || currentVideo;
+  if (videoToCue) {
+    cueApprovedVideo(videoToCue);
     pendingVideo = null;
+  } else {
+    setPlayerStatus('Choose an approved video.');
   }
+}
+
+function onPlayerError(event) {
+  const code = event && event.data;
+  if (code === 101 || code === 150) {
+    setPlayerStatus('This video owner does not allow playback on other websites. Please choose another approved video.', true);
+  } else {
+    setPlayerStatus('This video could not be played here. Please try another approved video.', true);
+  }
+  $('playPauseBtn').innerHTML = '▶ <span>Play</span>';
 }
 
 function onPlayerStateChange(event) {
   if (!window.YT) return;
   if (event.data === YT.PlayerState.PLAYING) {
     $('playPauseBtn').innerHTML = '⏸ <span>Pause</span>';
+    setPlayerStatus('');
     enforceVolumeCap();
-  } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+  } else if (event.data === YT.PlayerState.CUED) {
     $('playPauseBtn').innerHTML = '▶ <span>Play</span>';
+    setPlayerStatus('Ready — tap Play.');
+  } else if (event.data === YT.PlayerState.PAUSED) {
+    $('playPauseBtn').innerHTML = '▶ <span>Play</span>';
+    setPlayerStatus('Paused');
+  } else if (event.data === YT.PlayerState.ENDED) {
+    $('playPauseBtn').innerHTML = '▶ <span>Play again</span>';
+    setPlayerStatus('Finished');
   }
 }
 
@@ -164,36 +235,57 @@ function openVideo(video) {
     return;
   }
 
+  currentVideo = video;
+  pendingVideo = video;
   playerTitle.textContent = video.title;
   playerModal.classList.remove('hidden');
   playerModal.setAttribute('aria-hidden', 'false');
+  $('playPauseBtn').innerHTML = '▶ <span>Play</span>';
 
-  if (playerReady) loadApprovedVideo(video);
-  else pendingVideo = video;
+  if (playerReady && player) {
+    cueApprovedVideo(video);
+    pendingVideo = null;
+  } else {
+    setPlayerStatus('Loading video player…');
+    ensureYouTubePlayer();
+  }
 
   if (timerMinutes > 0 && !countdownId) startCountdown();
   updateTimerLabel();
 }
 
-function loadApprovedVideo(video) {
-  if (!playerReady || !player) return;
-  player.loadVideoById(video.id);
-  enforceVolumeCap(savedVolume);
-  if (isMuted) player.mute();
+function cueApprovedVideo(video) {
+  if (!playerReady || !player || !video) return;
+  currentVideo = video;
+  try {
+    player.cueVideoById(video.id);
+    enforceVolumeCap(savedVolume);
+    if (isMuted) player.mute();
+    setPlayerStatus('Ready — tap Play.');
+  } catch (_) {
+    setPlayerStatus('This video could not be prepared. Refresh KidsSite and try again.', true);
+  }
 }
 
 function closeVideo() {
   pendingVideo = null;
-  if (playerReady && player) player.stopVideo();
+  currentVideo = null;
+  if (playerReady && player) {
+    try { player.stopVideo(); } catch (_) {}
+  }
+  setPlayerStatus('');
   playerModal.classList.add('hidden');
   playerModal.setAttribute('aria-hidden', 'true');
 }
 
 function enforceVolumeCap(requestedVolume) {
   if (!playerReady || !player) return;
-  const current = typeof requestedVolume === 'number' ? requestedVolume : player.getVolume();
+  let current = requestedVolume;
+  if (typeof current !== 'number') {
+    try { current = player.getVolume(); } catch (_) { current = savedVolume; }
+  }
   const safeVolume = Math.min(MAX_VIDEO_VOLUME, Math.max(0, Number(current) || 0));
-  player.setVolume(safeVolume);
+  try { player.setVolume(safeVolume); } catch (_) {}
   savedVolume = safeVolume;
   localStorage.setItem('kidssite_volume', String(safeVolume));
   updateVolumeUI(safeVolume);
@@ -212,42 +304,65 @@ function setVideoVolume(volume) {
   updateVolumeUI(safeVolume);
 
   if (playerReady && player) {
-    player.setVolume(safeVolume);
-    if (safeVolume > 0 && isMuted) {
-      player.unMute();
-      isMuted = false;
-      $('muteBtn').innerHTML = '🔊 <span>Sound</span>';
-    }
+    try {
+      player.setVolume(safeVolume);
+      if (safeVolume > 0 && isMuted) {
+        player.unMute();
+        isMuted = false;
+        $('muteBtn').innerHTML = '🔊 <span>Sound</span>';
+      }
+    } catch (_) {}
   }
 }
 
 function togglePlayPause() {
-  if (!playerReady || !player || !window.YT) return;
-  const state = player.getPlayerState();
-  if (state === YT.PlayerState.PLAYING) player.pauseVideo();
-  else player.playVideo();
+  if (!currentVideo) return;
+  if (!playerReady || !player || !window.YT) {
+    pendingVideo = currentVideo;
+    setPlayerStatus('Loading video player…');
+    ensureYouTubePlayer();
+    return;
+  }
+
+  try {
+    const state = player.getPlayerState();
+    if (state === YT.PlayerState.PLAYING) {
+      player.pauseVideo();
+    } else if (state === YT.PlayerState.ENDED) {
+      player.seekTo(0, true);
+      player.playVideo();
+    } else {
+      player.playVideo();
+    }
+  } catch (_) {
+    setPlayerStatus('Could not start playback. Tap Play once more.', true);
+  }
 }
 
 function skipSeconds(amount) {
   if (!playerReady || !player) return;
-  const current = Number(player.getCurrentTime()) || 0;
-  const duration = Number(player.getDuration()) || 0;
-  const target = Math.max(0, duration ? Math.min(duration, current + amount) : current + amount);
-  player.seekTo(target, true);
+  try {
+    const current = Number(player.getCurrentTime()) || 0;
+    const duration = Number(player.getDuration()) || 0;
+    const target = Math.max(0, duration ? Math.min(duration, current + amount) : current + amount);
+    player.seekTo(target, true);
+  } catch (_) {}
 }
 
 function toggleMute() {
   if (!playerReady || !player) return;
-  if (player.isMuted()) {
-    player.unMute();
-    enforceVolumeCap(savedVolume || DEFAULT_VIDEO_VOLUME);
-    isMuted = false;
-    $('muteBtn').innerHTML = '🔊 <span>Sound</span>';
-  } else {
-    player.mute();
-    isMuted = true;
-    $('muteBtn').innerHTML = '🔇 <span>Muted</span>';
-  }
+  try {
+    if (player.isMuted()) {
+      player.unMute();
+      enforceVolumeCap(savedVolume || DEFAULT_VIDEO_VOLUME);
+      isMuted = false;
+      $('muteBtn').innerHTML = '🔊 <span>Sound</span>';
+    } else {
+      player.mute();
+      isMuted = true;
+      $('muteBtn').innerHTML = '🔇 <span>Muted</span>';
+    }
+  } catch (_) {}
 }
 
 function toggleFullscreen() {

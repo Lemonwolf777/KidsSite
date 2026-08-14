@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#7c5cff" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <title>KidsSite</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>KidsSite v1.3</title>
+  <link rel="stylesheet" href="style.css?v=1.3" />
 </head>
 <body>
   <header class="topbar">
@@ -51,6 +51,7 @@
         <div id="videoWrap" class="video-wrap">
           <div id="ytPlayer"></div>
         </div>
+        <div id="playerStatus" class="player-status">Loading video player…</div>
 
         <div class="kids-controls" aria-label="Video controls">
           <button id="back10Btn" class="kid-control-btn" type="button">↶ <span>10 sec</span></button>
@@ -142,6 +143,6 @@
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=1.3"></script>
 </body>
 </html>

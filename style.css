@@ -275,3 +275,19 @@ main { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 24px 0 60
   }
   .volume-cap { margin-left: 0; }
 }
+
+
+/* KidsSite v1.3 player status */
+.player-status {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #eef7ff;
+  color: #244b72;
+  font-weight: 800;
+  text-align: center;
+}
+.player-status.error {
+  background: #fff0f0;
+  color: #9b1c1c;
+}

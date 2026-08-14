@@ -20,3 +20,6 @@ Upload/replace these files in your KidsSite repository root:
 - README.txt
 
 Commit the changes. GitHub Pages should redeploy automatically.
+
+
+KidsSite v1.3: Fixed video playback initialization. Videos now cue first and wait for an explicit Play tap, with clear loading/error messages and cache-busted JS/CSS files. Volume remains capped at 50%.
