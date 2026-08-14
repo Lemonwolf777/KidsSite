@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kidssite",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-14",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kidssite-db",
+      "database_id": "54d5a19c-791d-4b3d-8cef-6eb04e337f26"
+    }
+  ]
+}
