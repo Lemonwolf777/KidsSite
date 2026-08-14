@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#7c5cff" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <title>KidsSite v1.3</title>
-  <link rel="stylesheet" href="style.css?v=1.3" />
+  <title>KidsSite</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
@@ -44,29 +44,18 @@
           <strong id="playerTitle">Video</strong>
           <div id="timerLabel" class="timer-label">⏱️ Timer: Off</div>
         </div>
-        <button id="closePlayer" class="icon-btn" aria-label="Close video">✕</button>
+        <button id="closePlayer" class="icon-btn">✕</button>
       </div>
-
-      <div id="playerStage" class="player-stage">
-        <div id="videoWrap" class="video-wrap">
-          <div id="ytPlayer"></div>
-        </div>
-        <div id="playerStatus" class="player-status">Loading video player…</div>
-
-        <div class="kids-controls" aria-label="Video controls">
-          <button id="back10Btn" class="kid-control-btn" type="button">↶ <span>10 sec</span></button>
-          <button id="playPauseBtn" class="kid-control-btn primary-control" type="button">⏸ <span>Pause</span></button>
-          <button id="forward10Btn" class="kid-control-btn" type="button">↷ <span>10 sec</span></button>
-          <button id="muteBtn" class="kid-control-btn" type="button">🔊 <span>Sound</span></button>
-          <button id="fullscreenBtn" class="kid-control-btn" type="button">⛶ <span>Full screen</span></button>
-        </div>
-
-        <div class="volume-panel">
-          <label for="volumeSlider">🔉 Volume <strong id="volumeValue">35%</strong> <span class="volume-cap">Maximum 50%</span></label>
-          <input id="volumeSlider" type="range" min="0" max="50" step="5" value="35" aria-label="Video volume, maximum 50 percent" />
-        </div>
+      <div class="video-wrap">
+        <iframe
+          id="playerFrame"
+          src=""
+          title="Approved kids video"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
       </div>
-
       <button id="homeBtn" class="big-home-btn">🏠 Go Home</button>
     </div>
   </div>
@@ -99,11 +88,6 @@
           </label>
           <button id="addVideoBtn" class="primary-btn">Add Video</button>
           <p id="addMessage" class="status-text"></p>
-        </div>
-
-        <div class="panel-block">
-          <h3>🔉 Video volume safety</h3>
-          <p class="small-note"><strong>KidsSite video volume is capped at 50%.</strong> The child controls cannot raise the YouTube player above this limit.</p>
         </div>
 
         <div class="panel-block">
@@ -142,7 +126,6 @@
     </div>
   </div>
 
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="script.js?v=1.3"></script>
+  <script src="script.js"></script>
 </body>
 </html>

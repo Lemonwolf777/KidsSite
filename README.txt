@@ -1,25 +1,25 @@
-KidsSite v1.2
+KIDSSITE - FIRST VERSION
 
-A simple parent-controlled kids video website.
+What this version does:
+- Parent-controlled approved YouTube video list
+- No open YouTube search
+- Big child-friendly categories
+- Parent PIN (default: 1234)
+- Add/remove videos from Parent Mode
+- Viewing timer: Off / 15 / 30 / 45 / 60 minutes
+- Uses youtube-nocookie.com embeds
+- Saves approved videos and settings on the device using browser localStorage
 
-NEW IN v1.2
-- YouTube's normal control bar is hidden (controls=0).
-- Big KidsSite controls: back 10 seconds, play/pause, forward 10 seconds, mute, fullscreen.
-- YouTube player volume is capped at 50%.
-- Default video volume is 35%.
-- Existing approved videos, PIN and timer settings remain saved in the same browser through localStorage.
+HOW TO RUN IT ON YOUR LAPTOP
+1. Open the KidsSite folder.
+2. Double-click index.html.
+3. It opens in your browser.
+4. Click Parent.
+5. Enter PIN 1234.
+6. Add a YouTube video link, title and category.
 
 IMPORTANT
-The 50% limit applies to the YouTube player's internal volume. A phone/tablet/computer's physical hardware volume buttons can still raise the device speaker volume. Device-level volume locking must be configured separately on the device.
-
-HOW TO UPDATE GITHUB PAGES
-Upload/replace these files in your KidsSite repository root:
-- index.html
-- style.css
-- script.js
-- README.txt
-
-Commit the changes. GitHub Pages should redeploy automatically.
-
-
-KidsSite v1.3: Fixed video playback initialization. Videos now cue first and wait for an explicit Play tap, with clear loading/error messages and cache-busted JS/CSS files. Volume remains capped at 50%.
+- Change the default PIN after testing.
+- This first PIN is only a basic family/device lock. It is not secure against someone who knows how to inspect website code.
+- Videos are stored only in that browser/device. If browser data is cleared, the list can be lost.
+- The next step can be publishing this free on GitHub Pages so it works on the tablet/phone.
