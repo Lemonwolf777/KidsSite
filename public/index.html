@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#7c5cff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <title>KidsSite</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>🌈 KidsSite</h1>
+      <p>Only videos approved by a parent.</p>
+    </div>
+    <div class="top-actions">
+      <span id="syncStatus" class="sync-status">☁️ Syncing…</span>
+      <button id="parentBtn" class="parent-btn">🔒 Parent</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h2>What do you want to watch?</h2>
+      <div class="categories" id="categories"></div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2 id="sectionTitle">All Approved Videos</h2>
+        <span id="videoCount"></span>
+      </div>
+      <div class="video-grid" id="videoGrid"></div>
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">🎬</div>
+        <h3>No videos here yet</h3>
+        <p>Ask a parent to add approved videos.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="playerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card player-card">
+      <div class="player-top">
+        <div>
+          <strong id="playerTitle">Video</strong>
+          <div id="timerLabel" class="timer-label">⏱️ Timer: Off</div>
+        </div>
+        <button id="closePlayer" class="icon-btn">✕</button>
+      </div>
+      <div class="video-wrap">
+        <iframe
+          id="playerFrame"
+          src=""
+          title="Approved kids video"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
+      </div>
+      <button id="homeBtn" class="big-home-btn">🏠 Go Home</button>
+    </div>
+  </div>
+
+  <div id="parentModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card parent-card">
+      <div class="modal-title-row">
+        <h2>Parent Mode</h2>
+        <button id="closeParent" class="icon-btn">✕</button>
+      </div>
+
+      <div id="pinGate">
+        <p>Enter the parent PIN.</p>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="12" placeholder="Parent PIN" autocomplete="off" />
+        <button id="unlockBtn" class="primary-btn">Unlock</button>
+        <p id="pinStatus" class="status-text"></p>
+        <p class="small-note">The parent PIN is checked by Cloudflare and is not stored in the website files.</p>
+      </div>
+
+      <div id="parentPanel" class="hidden">
+        <div id="importBlock" class="panel-block import-box hidden">
+          <h3>☁️ Move laptop videos to the cloud</h3>
+          <p id="importText" class="small-note"></p>
+          <button id="importVideosBtn" class="secondary-btn">Import saved videos</button>
+          <p id="importMessage" class="status-text"></p>
+        </div>
+
+        <div class="panel-block">
+          <h3>➕ Add approved video</h3>
+          <label>Video title
+            <input id="videoTitleInput" type="text" placeholder="e.g. Learn Colours" />
+          </label>
+          <label>YouTube link
+            <input id="videoUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+          </label>
+          <label>Category
+            <select id="videoCategoryInput"></select>
+          </label>
+          <button id="addVideoBtn" class="primary-btn">Add Video</button>
+          <p id="addMessage" class="status-text"></p>
+        </div>
+
+        <div class="panel-block">
+          <h3>⏱️ Viewing timer</h3>
+          <div class="timer-options">
+            <button class="timer-option" data-minutes="0">Off</button>
+            <button class="timer-option" data-minutes="15">15 min</button>
+            <button class="timer-option" data-minutes="30">30 min</button>
+            <button class="timer-option" data-minutes="45">45 min</button>
+            <button class="timer-option" data-minutes="60">60 min</button>
+          </div>
+          <p class="small-note">The viewing timer stays on each device. The approved video list is synced through Cloudflare.</p>
+        </div>
+
+        <div class="panel-block">
+          <h3>🗑️ Manage approved videos</h3>
+          <div id="manageList" class="manage-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="timeUpOverlay" class="time-up hidden">
+    <div class="time-up-card">
+      <div class="time-up-icon">🌙</div>
+      <h2>Screen time finished</h2>
+      <p>Ask a parent when you're ready to watch again.</p>
+      <button id="parentUnlockFromTimeUp" class="parent-btn">🔒 Parent</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
