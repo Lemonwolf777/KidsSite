@@ -174,3 +174,13 @@ main { width: min(1180px, calc(100% - 28px)); margin: 0 auto; padding: 24px 0 60
   .video-info strong { font-size: 15px; }
   .video-info { padding: 12px; }
 }
+
+/* Cloud-sync additions */
+.top-actions { display: flex; align-items: center; gap: 10px; }
+.sync-status { font-size: 13px; font-weight: 800; color: #356d4b; background: #e9f8ef; border-radius: 999px; padding: 8px 10px; white-space: nowrap; }
+.sync-status.error { color: #8a4a16; background: #fff0dc; }
+.import-box { background: #f5f2ff; border: 1px solid #e4dcff; border-radius: 18px; padding: 18px; }
+@media (max-width: 640px) {
+  .top-actions { flex-direction: column-reverse; align-items: flex-end; gap: 6px; }
+  .sync-status { font-size: 11px; padding: 5px 8px; }
+}

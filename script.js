@@ -8,11 +8,19 @@ const categories = [
   { id: 'math', name: 'Math', emoji: '🔢' }
 ];
 
-const starterVideos = [];
+const legacyLocalVideos = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('kidssite_videos') || '[]');
+    return Array.isArray(saved) ? saved.filter(v => v && v.id && v.title && v.category) : [];
+  } catch (_) {
+    return [];
+  }
+})();
 
-let videos = JSON.parse(localStorage.getItem('kidssite_videos') || 'null') || starterVideos;
+let videos = [];
 let currentCategory = 'all';
-let parentPin = localStorage.getItem('kidssite_pin') || '1234';
+let adminPinSession = '';
+let cloudOnline = false;
 let timerMinutes = Number(localStorage.getItem('kidssite_timer') || 0);
 let remainingSeconds = timerMinutes * 60;
 let countdownId = null;
@@ -32,9 +40,40 @@ const parentModal = $('parentModal');
 const pinGate = $('pinGate');
 const parentPanel = $('parentPanel');
 const timeUpOverlay = $('timeUpOverlay');
+const syncStatus = $('syncStatus');
 
-function saveVideos() {
+function cacheVideosLocally() {
   localStorage.setItem('kidssite_videos', JSON.stringify(videos));
+}
+
+function setSyncStatus(text, isError = false) {
+  syncStatus.textContent = text;
+  syncStatus.classList.toggle('error', isError);
+}
+
+async function api(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (options.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
+  if (adminPinSession) headers.set('x-admin-pin', adminPinSession);
+  return fetch(path, { ...options, headers, cache: 'no-store' });
+}
+
+async function loadVideos() {
+  setSyncStatus('☁️ Syncing…');
+  try {
+    const response = await api('/api/videos');
+    if (!response.ok) throw new Error('Cloud response failed');
+    const data = await response.json();
+    videos = Array.isArray(data.videos) ? data.videos : [];
+    cloudOnline = true;
+    cacheVideosLocally();
+    setSyncStatus('☁️ Synced');
+  } catch (error) {
+    cloudOnline = false;
+    videos = legacyLocalVideos.slice();
+    setSyncStatus('⚠️ Offline copy', true);
+  }
+  renderVideos();
 }
 
 function extractYouTubeId(url) {
@@ -148,6 +187,7 @@ function openParentModal() {
   parentModal.classList.remove('hidden');
   parentModal.setAttribute('aria-hidden', 'false');
   $('pinInput').value = '';
+  $('pinStatus').textContent = '';
   pinGate.classList.remove('hidden');
   parentPanel.classList.add('hidden');
   setTimeout(() => $('pinInput').focus(), 100);
@@ -158,8 +198,25 @@ function closeParentModal() {
   parentModal.setAttribute('aria-hidden', 'true');
 }
 
-function unlockParent() {
-  if ($('pinInput').value === parentPin) {
+async function unlockParent() {
+  const pin = $('pinInput').value.trim();
+  const status = $('pinStatus');
+  if (!pin) {
+    status.textContent = 'Enter your parent PIN.';
+    return;
+  }
+
+  status.textContent = 'Checking…';
+  try {
+    adminPinSession = pin;
+    const response = await api('/api/auth', { method: 'POST' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      adminPinSession = '';
+      status.textContent = data.error || 'Could not unlock Parent Mode.';
+      return;
+    }
+
     pinGate.classList.add('hidden');
     parentPanel.classList.remove('hidden');
     viewingLocked = false;
@@ -168,13 +225,14 @@ function unlockParent() {
     if (timerMinutes > 0) remainingSeconds = timerMinutes * 60;
     renderManageList();
     renderTimerOptions();
-  } else {
-    $('pinInput').value = '';
-    $('pinInput').placeholder = 'Wrong PIN - try again';
+    renderImportOption();
+  } catch (_) {
+    adminPinSession = '';
+    status.textContent = 'Cloud connection failed. Try again.';
   }
 }
 
-function addVideo() {
+async function addVideo() {
   const title = $('videoTitleInput').value.trim();
   const url = $('videoUrlInput').value.trim();
   const category = $('videoCategoryInput').value;
@@ -185,19 +243,33 @@ function addVideo() {
     msg.textContent = 'Please enter a title and a valid YouTube link.';
     return;
   }
-  if (videos.some(v => v.id === id)) {
-    msg.textContent = 'That video is already approved.';
+  if (!cloudOnline) {
+    msg.textContent = 'Cloud sync is offline. Try again when ☁️ Synced appears.';
     return;
   }
 
-  videos.unshift({ id, title, category });
-  saveVideos();
-  $('videoTitleInput').value = '';
-  $('videoUrlInput').value = '';
-  msg.textContent = '✅ Video added.';
-  renderVideos();
-  renderManageList();
-  setTimeout(() => msg.textContent = '', 2500);
+  msg.textContent = 'Saving to cloud…';
+  try {
+    const response = await api('/api/videos', {
+      method: 'POST',
+      body: JSON.stringify({ id, title, category })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      msg.textContent = data.error || 'Could not add the video.';
+      return;
+    }
+    videos = Array.isArray(data.videos) ? data.videos : videos;
+    cacheVideosLocally();
+    $('videoTitleInput').value = '';
+    $('videoUrlInput').value = '';
+    msg.textContent = '✅ Added and synced to every device.';
+    renderVideos();
+    renderManageList();
+    setTimeout(() => msg.textContent = '', 3000);
+  } catch (_) {
+    msg.textContent = 'Cloud connection failed. Try again.';
+  }
 }
 
 function renderManageList() {
@@ -211,14 +283,61 @@ function renderManageList() {
     const row = document.createElement('div');
     row.className = 'manage-row';
     row.innerHTML = `<span>${escapeHtml(video.title)}</span><button>Remove</button>`;
-    row.querySelector('button').addEventListener('click', () => {
-      videos = videos.filter(v => v.id !== video.id);
-      saveVideos();
-      renderManageList();
-      renderVideos();
+    row.querySelector('button').addEventListener('click', async () => {
+      if (!confirm(`Remove "${video.title}" from every device?`)) return;
+      try {
+        const response = await api(`/api/videos/${encodeURIComponent(video.id)}`, { method: 'DELETE' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(data.error || 'Could not remove the video.');
+          return;
+        }
+        videos = videos.filter(v => v.id !== video.id);
+        cacheVideosLocally();
+        renderManageList();
+        renderVideos();
+      } catch (_) {
+        alert('Cloud connection failed. Try again.');
+      }
     });
     list.appendChild(row);
   });
+}
+
+function renderImportOption() {
+  const block = $('importBlock');
+  if (!legacyLocalVideos.length) {
+    block.classList.add('hidden');
+    return;
+  }
+  block.classList.remove('hidden');
+  $('importText').textContent = `${legacyLocalVideos.length} video${legacyLocalVideos.length === 1 ? '' : 's'} were found in this browser from your old KidsSite. Import them once and they will appear on your phone and tablet too.`;
+}
+
+async function importLegacyVideos() {
+  const msg = $('importMessage');
+  if (!legacyLocalVideos.length) return;
+  msg.textContent = 'Importing to cloud…';
+  try {
+    const response = await api('/api/videos/import', {
+      method: 'POST',
+      body: JSON.stringify({ videos: legacyLocalVideos })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      msg.textContent = data.error || 'Import failed.';
+      return;
+    }
+    videos = Array.isArray(data.videos) ? data.videos : videos;
+    legacyLocalVideos.length = 0;
+    cacheVideosLocally();
+    msg.textContent = `✅ Imported ${data.imported || 0} video(s).`;
+    renderVideos();
+    renderManageList();
+    setTimeout(() => $('importBlock').classList.add('hidden'), 1200);
+  } catch (_) {
+    msg.textContent = 'Cloud connection failed. Try again.';
+  }
 }
 
 function renderTimerOptions() {
@@ -242,20 +361,6 @@ function setTimer(minutes) {
   updateTimerLabel();
 }
 
-function changePin() {
-  const newPin = $('newPinInput').value.trim();
-  const msg = $('pinMessage');
-  if (!/^\d{4,6}$/.test(newPin)) {
-    msg.textContent = 'PIN must be 4–6 numbers.';
-    return;
-  }
-  parentPin = newPin;
-  localStorage.setItem('kidssite_pin', newPin);
-  $('newPinInput').value = '';
-  msg.textContent = '✅ PIN changed.';
-  setTimeout(() => msg.textContent = '', 2500);
-}
-
 function populateCategorySelect() {
   const select = $('videoCategoryInput');
   categories.filter(c => c.id !== 'all').forEach(cat => {
@@ -271,7 +376,7 @@ $('closeParent').addEventListener('click', closeParentModal);
 $('unlockBtn').addEventListener('click', unlockParent);
 $('pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockParent(); });
 $('addVideoBtn').addEventListener('click', addVideo);
-$('changePinBtn').addEventListener('click', changePin);
+$('importVideosBtn').addEventListener('click', importLegacyVideos);
 $('closePlayer').addEventListener('click', closeVideo);
 $('homeBtn').addEventListener('click', closeVideo);
 $('parentUnlockFromTimeUp').addEventListener('click', openParentModal);
@@ -285,6 +390,7 @@ parentModal.addEventListener('click', e => { if (e.target === parentModal) close
 
 populateCategorySelect();
 renderCategories();
-renderVideos();
 renderTimerOptions();
+renderVideos();
+loadVideos();
 if (viewingLocked) timeUpOverlay.classList.remove('hidden');
