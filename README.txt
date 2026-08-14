@@ -48,3 +48,4 @@ Security:
 - Do NOT put the ADMIN_PIN inside GitHub files.
 
 Cloud sync setup
+Cloudflare reconnect test
