@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#7c5cff" />
+  <meta name="application-name" content="KidsSite" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="KidsSite" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>KidsSite</title>
   <link rel="stylesheet" href="style.css" />
@@ -23,6 +29,7 @@
     </div>
     <div class="top-actions">
       <span id="syncStatus" class="sync-status">☁️ Syncing…</span>
+      <button id="installBtn" class="install-btn" type="button">📲 Install App</button>
       <button id="parentBtn" class="parent-btn">🔒 Parent</button>
     </div>
   </header>
@@ -168,6 +175,25 @@
         <div class="panel-block">
           <h3>🗑️ Manage approved videos</h3>
           <div id="manageList" class="manage-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="installHelpModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card install-help-card">
+      <div class="modal-title-row">
+        <div>
+          <span class="mini-label">KIDSSITE APP</span>
+          <h2>📲 Install KidsSite</h2>
+        </div>
+        <button id="closeInstallHelp" class="icon-btn" aria-label="Close install help">✕</button>
+      </div>
+      <div class="install-help-body">
+        <div class="app-icon-preview"><img src="/icon-192.png" alt="KidsSite app icon" /></div>
+        <div>
+          <p id="installHelpText">Use your browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+          <p class="small-note">Once installed, KidsSite opens like an app and still uses the same cloud-synced approved videos.</p>
         </div>
       </div>
     </div>

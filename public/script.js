@@ -48,6 +48,10 @@ const pinGate = $('pinGate');
 const parentPanel = $('parentPanel');
 const timeUpOverlay = $('timeUpOverlay');
 const syncStatus = $('syncStatus');
+const installBtn = $('installBtn');
+const installHelpModal = $('installHelpModal');
+let deferredInstallPrompt = null;
+
 
 function cacheVideosLocally() {
   localStorage.setItem('kidssite_videos', JSON.stringify(videos));
@@ -469,6 +473,64 @@ function populateCategorySelect() {
   });
 }
 
+
+function isInstalledApp() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function showInstallHelp() {
+  const text = $('installHelpText');
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    text.innerHTML = 'On iPhone/iPad: tap the <strong>Share</strong> button, then choose <strong>Add to Home Screen</strong>.';
+  } else {
+    text.innerHTML = 'Open your browser menu <strong>⋮</strong> and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.';
+  }
+  installHelpModal.classList.remove('hidden');
+  installHelpModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeInstallHelp() {
+  installHelpModal.classList.add('hidden');
+  installHelpModal.setAttribute('aria-hidden', 'true');
+}
+
+async function installKidsSite() {
+  if (isInstalledApp()) return;
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    try {
+      await deferredInstallPrompt.userChoice;
+    } catch (_) {}
+    deferredInstallPrompt = null;
+    return;
+  }
+  showInstallHelp();
+}
+
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (!isInstalledApp()) installBtn.classList.add('ready');
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  installBtn.classList.add('hidden');
+  closeInstallHelp();
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+installBtn.addEventListener('click', installKidsSite);
+$('closeInstallHelp').addEventListener('click', closeInstallHelp);
+installHelpModal.addEventListener('click', e => { if (e.target === installHelpModal) closeInstallHelp(); });
+if (isInstalledApp()) installBtn.classList.add('hidden');
 $('parentBtn').addEventListener('click', openParentModal);
 $('closeParent').addEventListener('click', closeParentModal);
 $('unlockBtn').addEventListener('click', unlockParent);
