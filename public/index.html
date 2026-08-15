@@ -9,10 +9,17 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="page-sparkles" aria-hidden="true">
+    <span>⭐</span><span>☁️</span><span>✨</span><span>🌟</span><span>☁️</span><span>✨</span>
+  </div>
+
   <header class="topbar">
-    <div>
-      <h1>🌈 KidsSite</h1>
-      <p>Only videos approved by a parent.</p>
+    <div class="brand">
+      <div class="brand-bubble">🌈</div>
+      <div>
+        <h1>KidsSite</h1>
+        <p>Safe videos picked by a parent</p>
+      </div>
     </div>
     <div class="top-actions">
       <span id="syncStatus" class="sync-status">☁️ Syncing…</span>
@@ -21,21 +28,62 @@
   </header>
 
   <main>
-    <section class="hero">
-      <h2>What do you want to watch?</h2>
-      <div class="categories" id="categories"></div>
-    </section>
+    <div id="homeView">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="hero-pill">✨ SAFE • FUN • JUST FOR KIDS</span>
+          <h2>What do you want to watch?</h2>
+          <p>Pick a world below and jump straight to its videos.</p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <span class="hero-planet">🪐</span>
+          <span class="hero-rocket">🚀</span>
+          <span class="hero-star one">⭐</span>
+          <span class="hero-star two">✨</span>
+          <span class="hero-star three">🌟</span>
+        </div>
+      </section>
 
-    <section>
-      <div class="section-heading">
-        <h2 id="sectionTitle">All Approved Videos</h2>
-        <span id="videoCount"></span>
+      <section class="category-section">
+        <div class="home-section-heading">
+          <div>
+            <span class="mini-label">CHOOSE A WORLD</span>
+            <h2>Tap a category</h2>
+          </div>
+          <div class="tap-hint">Tap once → videos open</div>
+        </div>
+        <div class="categories" id="categories"></div>
+      </section>
+    </div>
+
+    <section id="categoryView" class="category-view hidden" data-category="all">
+      <div id="categoryBanner" class="category-banner">
+        <button id="backCategories" class="back-btn" type="button">← Categories</button>
+        <div class="category-banner-content">
+          <div id="categoryBannerEmoji" class="category-banner-emoji">🌈</div>
+          <div>
+            <span class="category-kicker">YOU PICKED</span>
+            <h2 id="categoryBannerTitle">All Videos</h2>
+            <p id="categoryBannerText">Every approved video in one place.</p>
+          </div>
+        </div>
+        <div class="banner-bubbles" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
+
+      <div class="section-heading video-heading">
+        <div>
+          <span class="mini-label">READY TO WATCH?</span>
+          <h2 id="sectionTitle">Choose a video</h2>
+        </div>
+        <span id="videoCount" class="video-count"></span>
+      </div>
+
       <div class="video-grid" id="videoGrid"></div>
       <div id="emptyState" class="empty-state hidden">
         <div class="empty-icon">🎬</div>
         <h3>No videos here yet</h3>
-        <p>Ask a parent to add approved videos.</p>
+        <p>Ask a parent to add an approved video to this category.</p>
+        <button id="emptyBackBtn" class="secondary-btn" type="button">← Pick another category</button>
       </div>
     </section>
   </main>
@@ -47,18 +95,19 @@
           <strong id="playerTitle">Video</strong>
           <div id="timerLabel" class="timer-label">⏱️ Timer: Off</div>
         </div>
-        <button id="closePlayer" class="icon-btn">✕</button>
+        <button id="closePlayer" class="icon-btn" aria-label="Close video">✕</button>
       </div>
-      <div class="video-wrap">
+      <div class="video-wrap" id="videoWrap">
         <iframe
           id="playerFrame"
           src=""
           title="Approved kids video"
           frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           referrerpolicy="strict-origin-when-cross-origin"
           allowfullscreen></iframe>
       </div>
+      <button id="landscapeFullscreenBtn" class="landscape-fullscreen-btn">⛶ Full Screen Landscape</button>
       <button id="homeBtn" class="big-home-btn">🏠 Go Home</button>
     </div>
   </div>
@@ -66,8 +115,11 @@
   <div id="parentModal" class="modal hidden" aria-hidden="true">
     <div class="modal-card parent-card">
       <div class="modal-title-row">
-        <h2>Parent Mode</h2>
-        <button id="closeParent" class="icon-btn">✕</button>
+        <div>
+          <span class="mini-label">GROWN-UPS ONLY</span>
+          <h2>🔒 Parent Mode</h2>
+        </div>
+        <button id="closeParent" class="icon-btn" aria-label="Close parent mode">✕</button>
       </div>
 
       <div id="pinGate">
@@ -86,7 +138,7 @@
           <p id="importMessage" class="status-text"></p>
         </div>
 
-        <div class="panel-block">
+        <div class="panel-block add-video-panel">
           <h3>➕ Add approved video</h3>
           <label>Video title
             <input id="videoTitleInput" type="text" placeholder="e.g. Learn Colours" />
