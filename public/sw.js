@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kidssite-app-v1';
+const CACHE_NAME = 'kidssite-app-v1-2-install-fix';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   '/script.js',
   '/manifest.webmanifest',
   '/icon-180.png',
+  '/apple-touch-icon.png',
   '/icon-192.png',
   '/icon-512.png'
 ];
