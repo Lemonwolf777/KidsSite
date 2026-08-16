@@ -39,6 +39,11 @@ const categoryBannerTitle = $('categoryBannerTitle');
 const categoryBannerText = $('categoryBannerText');
 const playerModal = $('playerModal');
 const playerFrame = $('playerFrame');
+let ytPlayer = null;
+let ytApiReady = false;
+let ytPlayerReady = false;
+let pendingVideo = null;
+let currentVideoId = null;
 const playerTitle = $('playerTitle');
 const videoWrap = $('videoWrap');
 const landscapeFullscreenBtn = $('landscapeFullscreenBtn');
@@ -180,15 +185,109 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function loadYouTubeApi() {
+  if (window.YT && window.YT.Player) {
+    ytApiReady = true;
+    return;
+  }
+  if (document.querySelector('script[data-kidssite-youtube-api]')) return;
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  tag.async = true;
+  tag.dataset.kidssiteYoutubeApi = 'true';
+  document.head.appendChild(tag);
+}
+
+window.onYouTubeIframeAPIReady = function() {
+  ytApiReady = true;
+  if (pendingVideo && !ytPlayer) {
+    createYouTubePlayer(pendingVideo);
+  }
+};
+
+function createYouTubePlayer(video) {
+  if (!ytApiReady || !window.YT || !window.YT.Player) {
+    pendingVideo = video;
+    loadYouTubeApi();
+    return;
+  }
+
+  pendingVideo = video;
+  currentVideoId = video.id;
+
+  ytPlayer = new YT.Player('playerFrame', {
+    width: '100%',
+    height: '100%',
+    videoId: video.id,
+    playerVars: {
+      autoplay: 1,
+      playsinline: 1,
+      rel: 0,
+      origin: window.location.origin
+    },
+    events: {
+      onReady: event => {
+        ytPlayerReady = true;
+        if (pendingVideo && pendingVideo.id !== currentVideoId) {
+          currentVideoId = pendingVideo.id;
+          event.target.loadVideoById(pendingVideo.id);
+        } else {
+          event.target.playVideo();
+        }
+      },
+      onAutoplayBlocked: event => {
+        // Browser blocked playback with sound. Start muted automatically
+        // so the child never has to press YouTube's extra play button.
+        try {
+          event.target.mute();
+          event.target.playVideo();
+        } catch (_) {}
+      }
+    }
+  });
+}
+
+function playVideoNow(video) {
+  pendingVideo = video;
+  currentVideoId = video.id;
+
+  if (ytPlayer && ytPlayerReady) {
+    try {
+      ytPlayer.unMute();
+      ytPlayer.loadVideoById(video.id);
+      ytPlayer.playVideo();
+      return;
+    } catch (_) {}
+  }
+
+  if (ytPlayer) {
+    // Player exists but is still becoming ready.
+    return;
+  }
+
+  createYouTubePlayer(video);
+}
+
 function openVideo(video) {
   if (viewingLocked) {
     timeUpOverlay.classList.remove('hidden');
     return;
   }
+
   playerTitle.textContent = video.title;
-  playerFrame.src = `https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`;
+
+  // Show the player container first so the browser can fullscreen it.
   playerModal.classList.remove('hidden');
   playerModal.setAttribute('aria-hidden', 'false');
+
+  // IMPORTANT: this runs directly from the child's card tap.
+  // Request fullscreen immediately while the browser still considers
+  // the tap a valid user gesture, then rotate to landscape.
+  enterLandscapeFullscreen();
+
+  // Start the selected video from the very same tap.
+  playVideoNow(video);
+
   if (timerMinutes > 0 && !countdownId) startCountdown();
   updateTimerLabel();
 }
@@ -244,7 +343,10 @@ function closeVideo() {
     document.webkitExitFullscreen();
   }
   unlockOrientation();
-  playerFrame.src = '';
+  pendingVideo = null;
+  if (ytPlayer && ytPlayerReady) {
+    try { ytPlayer.stopVideo(); } catch (_) {}
+  }
   playerModal.classList.add('hidden');
   playerModal.setAttribute('aria-hidden', 'true');
 }
@@ -540,7 +642,7 @@ $('importVideosBtn').addEventListener('click', importLegacyVideos);
 $('closePlayer').addEventListener('click', closeVideo);
 $('backCategories').addEventListener('click', showCategories);
 $('emptyBackBtn').addEventListener('click', showCategories);
-landscapeFullscreenBtn.addEventListener('click', enterLandscapeFullscreen);
+if (landscapeFullscreenBtn) landscapeFullscreenBtn.addEventListener('click', enterLandscapeFullscreen);
 document.addEventListener('fullscreenchange', handleFullscreenChange);
 document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 $('homeBtn').addEventListener('click', goHomeFromPlayer);
@@ -553,6 +655,7 @@ document.querySelectorAll('.timer-option').forEach(btn => {
 playerModal.addEventListener('click', e => { if (e.target === playerModal) closeVideo(); });
 parentModal.addEventListener('click', e => { if (e.target === parentModal) closeParentModal(); });
 
+loadYouTubeApi();
 populateCategorySelect();
 renderCategories();
 renderTimerOptions();

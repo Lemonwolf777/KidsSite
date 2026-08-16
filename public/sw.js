@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kidssite-app-v1-2-install-fix';
+const CACHE_NAME = 'kidssite-app-v1-4-auto-fullscreen-landscape';
 const APP_SHELL = [
   '/',
   '/index.html',
