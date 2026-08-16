@@ -1,11 +1,53 @@
 const categories = [
-  { id: 'all', name: 'All Videos', emoji: '🌈', desc: 'Everything approved in one happy place', banner: 'Every approved video, all together.' },
-  { id: 'learn', name: 'Learn', emoji: '📚', desc: 'Colours, words, science and more', banner: 'Fun videos for discovering something new.' },
-  { id: 'animals', name: 'Animals', emoji: '🐯', desc: 'Wild friends, pets and nature', banner: 'Meet amazing animals from around the world.' },
-  { id: 'cartoons', name: 'Cartoons', emoji: '🎨', desc: 'Funny, colourful animated adventures', banner: 'Approved cartoons ready for playtime.' },
-  { id: 'songs', name: 'Songs', emoji: '🎵', desc: 'Sing, dance and move along', banner: 'Music and sing-along videos for happy ears.' },
-  { id: 'stories', name: 'Stories', emoji: '📖', desc: 'Big adventures and bedtime tales', banner: 'Story time starts right here.' },
-  { id: 'math', name: 'Math', emoji: '🔢', desc: 'Numbers, counting and easy maths', banner: 'Make numbers feel like a game.' }
+  {
+    id: 'all', name: 'All Videos', emoji: '🌈',
+    desc: 'Everything approved in one happy place',
+    banner: 'Every approved video, all together.',
+    scene: ['⭐','🌈','☁️','✨'],
+    world: ['🌈','⭐','☁️','✨','🪁','🎈','🌟','🫧','🎨','🚀','💫','☀️']
+  },
+  {
+    id: 'learn', name: 'Learn', emoji: '📚',
+    desc: 'Colours, words, science and more',
+    banner: 'Welcome to the discovery lab — learn something amazing!',
+    scene: ['✏️','🔬','🧠','💡'],
+    world: ['🔤','✏️','📏','🔬','🧪','💡','🔢','🖍️','🎒','📐','🧠','⭐']
+  },
+  {
+    id: 'animals', name: 'Animals', emoji: '🐯',
+    desc: 'Wild friends, pets and nature',
+    banner: 'Step into the jungle and meet amazing animal friends.',
+    scene: ['🌿','🦁','🐾','🦋'],
+    world: ['🌴','🦁','🐒','🦋','🌿','🦜','🐾','🌺','🐘','☀️','🐯','🍃']
+  },
+  {
+    id: 'cartoons', name: 'Cartoons', emoji: '🎨',
+    desc: 'Funny, colourful animated adventures',
+    banner: 'A bright cartoon world packed with laughs and adventures.',
+    scene: ['🎈','⭐','🎭','✨'],
+    world: ['💥','⭐','🎈','✨','🎨','☁️','⚡','🎭','🌈','💫','🎪','🫧']
+  },
+  {
+    id: 'songs', name: 'Songs', emoji: '🎵',
+    desc: 'Sing, dance and move along',
+    banner: 'Turn up the fun — sing, dance and move to the music!',
+    scene: ['🎤','🎶','💃','🪩'],
+    world: ['🎵','🎤','🎶','🪩','🎧','⭐','🥁','🎹','🎸','💃','🎺','✨']
+  },
+  {
+    id: 'stories', name: 'Stories', emoji: '📖',
+    desc: 'Big adventures and bedtime tales',
+    banner: 'Cosy story time under the moon and stars.',
+    scene: ['🌙','🏰','⭐','🧸'],
+    world: ['🌙','⭐','☁️','📚','🏰','🧸','✨','🚀','🦄','💤','🌟','🪄']
+  },
+  {
+    id: 'math', name: 'Math', emoji: '🔢',
+    desc: 'Numbers, counting and easy maths',
+    banner: 'Count, solve and play in a world full of numbers.',
+    scene: ['➕','🔷','7️⃣','🧩'],
+    world: ['1️⃣','2️⃣','3️⃣','➕','➖','🔺','🟦','🧩','✖️','🟡','📐','🟩']
+  }
 ];
 
 const legacyLocalVideos = (() => {
@@ -37,6 +79,8 @@ const videoCount = $('videoCount');
 const categoryBannerEmoji = $('categoryBannerEmoji');
 const categoryBannerTitle = $('categoryBannerTitle');
 const categoryBannerText = $('categoryBannerText');
+const categoryScene = $('categoryScene');
+const worldDecor = $('worldDecor');
 const playerModal = $('playerModal');
 const playerFrame = $('playerFrame');
 let ytPlayer = null;
@@ -44,6 +88,13 @@ let ytApiReady = false;
 let ytPlayerReady = false;
 let pendingVideo = null;
 let currentVideoId = null;
+let currentPlayingVideo = null;
+let autoplayTimeout = null;
+let watchPlayingSince = null;
+let unreportedWatchSeconds = 0;
+let watchHeartbeatId = null;
+let watchDateForSession = '';
+let statsRows = [];
 const playerTitle = $('playerTitle');
 const videoWrap = $('videoWrap');
 const landscapeFullscreenBtn = $('landscapeFullscreenBtn');
@@ -134,6 +185,7 @@ function renderCategories() {
 
 function openCategory(categoryId) {
   currentCategory = categories.some(c => c.id === categoryId) ? categoryId : 'all';
+  document.body.dataset.category = currentCategory;
   renderVideos();
   homeView.classList.add('hidden');
   categoryView.classList.remove('hidden');
@@ -141,6 +193,7 @@ function openCategory(categoryId) {
 }
 
 function showCategories() {
+  delete document.body.dataset.category;
   categoryView.classList.add('hidden');
   homeView.classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -154,6 +207,10 @@ function renderVideos() {
   categoryBannerEmoji.textContent = cat.emoji;
   categoryBannerTitle.textContent = cat.name;
   categoryBannerText.textContent = cat.banner;
+  categoryScene.innerHTML = (cat.scene || []).map(item => `<span>${item}</span>`).join('');
+  worldDecor.innerHTML = (cat.world || []).map((item, index) =>
+    `<span class="world-prop world-prop-${index + 1}">${item}</span>`
+  ).join('');
   sectionTitle.textContent = currentCategory === 'all' ? 'Choose a video' : `${cat.name} videos`;
   videoCount.textContent = `${filtered.length} video${filtered.length === 1 ? '' : 's'}`;
 
@@ -236,20 +293,24 @@ function createYouTubePlayer(video) {
         }
       },
       onAutoplayBlocked: event => {
-        // Browser blocked playback with sound. Start muted automatically
-        // so the child never has to press YouTube's extra play button.
+        // Browser blocked playback with sound. Start muted automatically.
         try {
           event.target.mute();
           event.target.playVideo();
         } catch (_) {}
-      }
+      },
+      onStateChange: handlePlayerStateChange
     }
   });
 }
 
-function playVideoNow(video) {
+function playVideoNow(video, options = {}) {
+  finishWatchSegment();
+  currentPlayingVideo = video;
   pendingVideo = video;
   currentVideoId = video.id;
+  playerTitle.textContent = video.title;
+  startWatchSession(video);
 
   if (ytPlayer && ytPlayerReady) {
     try {
@@ -260,11 +321,7 @@ function playVideoNow(video) {
     } catch (_) {}
   }
 
-  if (ytPlayer) {
-    // Player exists but is still becoming ready.
-    return;
-  }
-
+  if (ytPlayer) return;
   createYouTubePlayer(video);
 }
 
@@ -290,6 +347,96 @@ function openVideo(video) {
 
   if (timerMinutes > 0 && !countdownId) startCountdown();
   updateTimerLabel();
+}
+
+
+function localDateString(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function startWatchSession(video) {
+  watchDateForSession = localDateString();
+  unreportedWatchSeconds = 0;
+  watchPlayingSince = null;
+  api('/api/watch/start', {
+    method: 'POST',
+    body: JSON.stringify({ id: video.id, date: watchDateForSession }),
+    keepalive: true
+  }).catch(() => {});
+  if (watchHeartbeatId) clearInterval(watchHeartbeatId);
+  watchHeartbeatId = setInterval(() => flushWatchTime(false), 30000);
+}
+
+function finishWatchSegment() {
+  if (watchPlayingSince) {
+    unreportedWatchSeconds += Math.max(0, (Date.now() - watchPlayingSince) / 1000);
+    watchPlayingSince = null;
+  }
+}
+
+function flushWatchTime(force = false) {
+  if (!currentPlayingVideo) return;
+  if (watchPlayingSince) {
+    unreportedWatchSeconds += Math.max(0, (Date.now() - watchPlayingSince) / 1000);
+    watchPlayingSince = Date.now();
+  }
+  const seconds = Math.floor(unreportedWatchSeconds);
+  if (seconds < (force ? 1 : 10)) return;
+  unreportedWatchSeconds -= seconds;
+  api('/api/watch/time', {
+    method: 'POST',
+    body: JSON.stringify({ id: currentPlayingVideo.id, date: watchDateForSession || localDateString(), seconds }),
+    keepalive: true
+  }).catch(() => {});
+}
+
+function finishWatchSession() {
+  finishWatchSegment();
+  flushWatchTime(true);
+  if (watchHeartbeatId) {
+    clearInterval(watchHeartbeatId);
+    watchHeartbeatId = null;
+  }
+  watchPlayingSince = null;
+  unreportedWatchSeconds = 0;
+}
+
+function handlePlayerStateChange(event) {
+  if (!window.YT || !YT.PlayerState) return;
+  if (event.data === YT.PlayerState.PLAYING) {
+    if (!watchPlayingSince) watchPlayingSince = Date.now();
+    return;
+  }
+
+  if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.BUFFERING || event.data === YT.PlayerState.CUED) {
+    finishWatchSegment();
+    flushWatchTime(false);
+    return;
+  }
+
+  if (event.data === YT.PlayerState.ENDED) {
+    finishWatchSession();
+    autoPlayNextApproved();
+  }
+}
+
+function autoPlayNextApproved() {
+  if (!currentPlayingVideo || viewingLocked || playerModal.classList.contains('hidden')) return;
+  const sameCategory = videos.filter(v => v.category === currentPlayingVideo.category);
+  if (sameCategory.length < 2) return;
+  const index = sameCategory.findIndex(v => v.id === currentPlayingVideo.id);
+  const nextVideo = sameCategory[(index + 1 + sameCategory.length) % sameCategory.length];
+  if (!nextVideo) return;
+
+  playerTitle.textContent = `Up next: ${nextVideo.title}`;
+  autoplayTimeout = setTimeout(() => {
+    autoplayTimeout = null;
+    if (viewingLocked || playerModal.classList.contains('hidden')) return;
+    playVideoNow(nextVideo, { autoplay: true });
+  }, 850);
 }
 
 async function lockLandscape() {
@@ -337,6 +484,12 @@ function handleFullscreenChange() {
 }
 
 function closeVideo() {
+  if (autoplayTimeout) {
+    clearTimeout(autoplayTimeout);
+    autoplayTimeout = null;
+  }
+  finishWatchSession();
+  currentPlayingVideo = null;
   if (document.fullscreenElement && document.exitFullscreen) {
     document.exitFullscreen().catch(() => {});
   } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
@@ -426,6 +579,7 @@ async function unlockParent() {
     renderManageList();
     renderTimerOptions();
     renderImportOption();
+    loadDashboard();
   } catch (_) {
     adminPinSession = '';
     status.textContent = 'Cloud connection failed. Try again.';
@@ -543,6 +697,140 @@ async function importLegacyVideos() {
   }
 }
 
+
+function formatWatchTime(seconds) {
+  seconds = Math.max(0, Number(seconds) || 0);
+  if (seconds < 60) return seconds > 0 ? '<1 min' : '0 min';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function categoryLabel(categoryId) {
+  const cat = categories.find(c => c.id === categoryId);
+  return cat ? `${cat.emoji} ${cat.name}` : '—';
+}
+
+function getLastSevenDates() {
+  const dates = [];
+  const today = new Date();
+  for (let offset = 6; offset >= 0; offset--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - offset);
+    dates.push({
+      key: localDateString(d),
+      label: d.toLocaleDateString(undefined, { weekday: 'short' }),
+      dateLabel: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+    });
+  }
+  return dates;
+}
+
+async function loadDashboard() {
+  const status = $('dashboardStatus');
+  $('dashApproved').textContent = String(videos.length);
+  status.textContent = 'Loading viewing activity…';
+
+  const days = getLastSevenDates();
+  try {
+    const response = await api(`/api/stats?from=${encodeURIComponent(days[0].key)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      status.textContent = data.error || 'Could not load dashboard activity.';
+      return;
+    }
+    statsRows = Array.isArray(data.rows) ? data.rows : [];
+    renderDashboard(days, statsRows);
+    status.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Activity syncs across devices.`;
+  } catch (_) {
+    status.textContent = 'Dashboard could not reach Cloudflare. Try Refresh.';
+  }
+}
+
+function renderDashboard(days, rows) {
+  const todayKey = localDateString();
+  const todayRows = rows.filter(row => row.watch_date === todayKey);
+  const todaySeconds = todayRows.reduce((sum, row) => sum + Number(row.seconds || 0), 0);
+  const todayPlays = todayRows.reduce((sum, row) => sum + Number(row.plays || 0), 0);
+  const weekSeconds = rows.reduce((sum, row) => sum + Number(row.seconds || 0), 0);
+
+  $('dashTodayTime').textContent = formatWatchTime(todaySeconds);
+  $('dashTodayPlays').textContent = String(todayPlays);
+  $('dashWeekTime').textContent = `${formatWatchTime(weekSeconds)} total`;
+  $('dashApproved').textContent = String(videos.length);
+
+  const categoryTotals = new Map();
+  const videoTotals = new Map();
+  rows.forEach(row => {
+    const plays = Number(row.plays || 0);
+    const seconds = Number(row.seconds || 0);
+    if (row.category && row.category !== 'other') {
+      const current = categoryTotals.get(row.category) || { plays: 0, seconds: 0 };
+      current.plays += plays;
+      current.seconds += seconds;
+      categoryTotals.set(row.category, current);
+    }
+    const currentVideo = videoTotals.get(row.id) || { title: row.title || 'Video', plays: 0, seconds: 0, category: row.category };
+    currentVideo.plays += plays;
+    currentVideo.seconds += seconds;
+    videoTotals.set(row.id, currentVideo);
+  });
+
+  const topCategory = [...categoryTotals.entries()].sort((a, b) => (b[1].seconds - a[1].seconds) || (b[1].plays - a[1].plays))[0];
+  $('dashTopCategory').textContent = topCategory ? categoryLabel(topCategory[0]) : '—';
+
+  const topVideo = [...videoTotals.values()].sort((a, b) => (b.seconds - a.seconds) || (b.plays - a.plays))[0];
+  $('dashTopVideo').textContent = topVideo ? topVideo.title : 'No viewing yet';
+  $('dashTopVideoMeta').textContent = topVideo
+    ? `${topVideo.plays} play${topVideo.plays === 1 ? '' : 's'} • ${formatWatchTime(topVideo.seconds)}`
+    : 'Start watching to see activity.';
+
+  const daily = new Map();
+  rows.forEach(row => daily.set(row.watch_date, (daily.get(row.watch_date) || 0) + Number(row.seconds || 0)));
+  const maxSeconds = Math.max(60, ...days.map(day => daily.get(day.key) || 0));
+  const bars = $('activityBars');
+  bars.innerHTML = '';
+  days.forEach(day => {
+    const seconds = daily.get(day.key) || 0;
+    const item = document.createElement('div');
+    item.className = 'activity-day';
+    const height = seconds ? Math.max(10, Math.round((seconds / maxSeconds) * 100)) : 5;
+    item.innerHTML = `<span class="activity-value">${seconds ? Math.max(1, Math.round(seconds / 60)) : 0}m</span><div class="activity-track"><span style="height:${height}%"></span></div><small>${day.label}<em>${day.dateLabel}</em></small>`;
+    bars.appendChild(item);
+  });
+}
+
+
+async function resetWatchHistory() {
+  const status = $('dashboardStatus');
+  const confirmed = window.confirm(
+    'Reset all recorded watch history?\n\nThis will clear your testing watch time and 7-day activity. Approved videos will NOT be deleted.'
+  );
+  if (!confirmed) return;
+
+  status.textContent = 'Resetting watch history…';
+  $('resetStatsBtn').disabled = true;
+
+  try {
+    const response = await api('/api/stats/reset', { method: 'DELETE' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      status.textContent = data.error || 'Could not reset watch history.';
+      return;
+    }
+
+    statsRows = [];
+    renderDashboard(getLastSevenDates(), []);
+    status.textContent = '✅ Watch history reset. Today is back to 0 and the 7-day history is clear.';
+  } catch (_) {
+    status.textContent = 'Could not reach Cloudflare. Try again.';
+  } finally {
+    $('resetStatsBtn').disabled = false;
+  }
+}
+
 function renderTimerOptions() {
   document.querySelectorAll('.timer-option').forEach(btn => {
     const mins = Number(btn.dataset.minutes);
@@ -639,6 +927,8 @@ $('unlockBtn').addEventListener('click', unlockParent);
 $('pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockParent(); });
 $('addVideoBtn').addEventListener('click', addVideo);
 $('importVideosBtn').addEventListener('click', importLegacyVideos);
+$('refreshStatsBtn').addEventListener('click', loadDashboard);
+$('resetStatsBtn').addEventListener('click', resetWatchHistory);
 $('closePlayer').addEventListener('click', closeVideo);
 $('backCategories').addEventListener('click', showCategories);
 $('emptyBackBtn').addEventListener('click', showCategories);
@@ -653,6 +943,7 @@ document.querySelectorAll('.timer-option').forEach(btn => {
 });
 
 playerModal.addEventListener('click', e => { if (e.target === playerModal) closeVideo(); });
+window.addEventListener('pagehide', () => finishWatchSession());
 parentModal.addEventListener('click', e => { if (e.target === parentModal) closeParentModal(); });
 
 loadYouTubeApi();
