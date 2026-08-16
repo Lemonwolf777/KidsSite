@@ -34,6 +34,38 @@ async function listVideos(env) {
   return result.results || [];
 }
 
+let statsTableReady = false;
+
+async function ensureStatsTable(env) {
+  if (statsTableReady) return;
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS watch_stats (
+      youtube_id TEXT NOT NULL,
+      watch_date TEXT NOT NULL,
+      plays INTEGER NOT NULL DEFAULT 0,
+      seconds INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (youtube_id, watch_date)
+    )
+  `).run();
+  await env.DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_watch_stats_date ON watch_stats(watch_date)"
+  ).run();
+  statsTableReady = true;
+}
+
+function cleanWatchInput(input) {
+  const youtubeId = String(input?.id || "").trim();
+  const watchDate = String(input?.date || "").trim();
+  if (!/^[A-Za-z0-9_-]{6,20}$/.test(youtubeId)) return { error: "Invalid video ID." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(watchDate)) return { error: "Invalid viewing date." };
+  return { youtubeId, watchDate };
+}
+
+async function approvedVideoExists(env, youtubeId) {
+  const row = await env.DB.prepare("SELECT youtube_id FROM videos WHERE youtube_id = ?1").bind(youtubeId).first();
+  return Boolean(row);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -51,6 +83,68 @@ export default {
 
       if (url.pathname === "/api/videos" && request.method === "GET") {
         return json({ videos: await listVideos(env) });
+      }
+
+      if (url.pathname === "/api/watch/start" && request.method === "POST") {
+        await ensureStatsTable(env);
+        const input = cleanWatchInput(await request.json());
+        if (input.error) return json({ error: input.error }, 400);
+        if (!(await approvedVideoExists(env, input.youtubeId))) return json({ error: "Video is not approved." }, 404);
+
+        await env.DB.prepare(`
+          INSERT INTO watch_stats (youtube_id, watch_date, plays, seconds)
+          VALUES (?1, ?2, 1, 0)
+          ON CONFLICT(youtube_id, watch_date) DO UPDATE SET plays = plays + 1
+        `).bind(input.youtubeId, input.watchDate).run();
+        return json({ ok: true });
+      }
+
+      if (url.pathname === "/api/watch/time" && request.method === "POST") {
+        await ensureStatsTable(env);
+        const body = await request.json();
+        const input = cleanWatchInput(body);
+        if (input.error) return json({ error: input.error }, 400);
+        const seconds = Math.max(1, Math.min(300, Math.floor(Number(body?.seconds) || 0)));
+        if (!(await approvedVideoExists(env, input.youtubeId))) return json({ error: "Video is not approved." }, 404);
+
+        await env.DB.prepare(`
+          INSERT INTO watch_stats (youtube_id, watch_date, plays, seconds)
+          VALUES (?1, ?2, 0, ?3)
+          ON CONFLICT(youtube_id, watch_date) DO UPDATE SET seconds = seconds + excluded.seconds
+        `).bind(input.youtubeId, input.watchDate, seconds).run();
+        return json({ ok: true });
+      }
+
+      if (url.pathname === "/api/stats" && request.method === "GET") {
+        if (!env.ADMIN_PIN) return json({ error: "ADMIN_PIN secret is not configured yet." }, 503);
+        if (!isAuthorized(request, env)) return json({ error: "Not authorized." }, 401);
+        await ensureStatsTable(env);
+        const from = String(url.searchParams.get("from") || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return json({ error: "Invalid start date." }, 400);
+
+        const result = await env.DB.prepare(`
+          SELECT
+            s.watch_date,
+            s.youtube_id AS id,
+            COALESCE(v.title, 'Removed video') AS title,
+            COALESCE(v.category, 'other') AS category,
+            s.plays,
+            s.seconds
+          FROM watch_stats s
+          LEFT JOIN videos v ON v.youtube_id = s.youtube_id
+          WHERE s.watch_date >= ?1
+          ORDER BY s.watch_date ASC, s.seconds DESC, s.plays DESC
+        `).bind(from).all();
+        return json({ rows: result.results || [] });
+      }
+
+
+      if (url.pathname === "/api/stats/reset" && request.method === "DELETE") {
+        if (!env.ADMIN_PIN) return json({ error: "ADMIN_PIN secret is not configured yet." }, 503);
+        if (!isAuthorized(request, env)) return json({ error: "Not authorized." }, 401);
+        await ensureStatsTable(env);
+        await env.DB.prepare("DELETE FROM watch_stats").run();
+        return json({ ok: true });
       }
 
       if (url.pathname === "/api/auth" && request.method === "POST") {
