@@ -4,38 +4,94 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#7c5cff" />
+  <meta name="application-name" content="KidsSite" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="KidsSite" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>KidsSite</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="page-sparkles" aria-hidden="true">
+    <span>⭐</span><span>☁️</span><span>✨</span><span>🌟</span><span>☁️</span><span>✨</span>
+  </div>
+
   <header class="topbar">
-    <div>
-      <h1>🌈 KidsSite</h1>
-      <p>Only videos approved by a parent.</p>
+    <div class="brand">
+      <div class="brand-bubble">🌈</div>
+      <div>
+        <h1>KidsSite</h1>
+        <p>Safe videos picked by a parent</p>
+      </div>
     </div>
     <div class="top-actions">
       <span id="syncStatus" class="sync-status">☁️ Syncing…</span>
+      <button id="installBtn" class="install-btn" type="button">📲 Install App</button>
       <button id="parentBtn" class="parent-btn">🔒 Parent</button>
     </div>
   </header>
 
   <main>
-    <section class="hero">
-      <h2>What do you want to watch?</h2>
-      <div class="categories" id="categories"></div>
-    </section>
+    <div id="homeView">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="hero-pill">✨ SAFE • FUN • JUST FOR KIDS</span>
+          <h2>What do you want to watch?</h2>
+          <p>Pick a world below and jump straight to its videos.</p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <span class="hero-planet">🪐</span>
+          <span class="hero-rocket">🚀</span>
+          <span class="hero-star one">⭐</span>
+          <span class="hero-star two">✨</span>
+          <span class="hero-star three">🌟</span>
+        </div>
+      </section>
 
-    <section>
-      <div class="section-heading">
-        <h2 id="sectionTitle">All Approved Videos</h2>
-        <span id="videoCount"></span>
+      <section class="category-section">
+        <div class="home-section-heading">
+          <div>
+            <span class="mini-label">CHOOSE A WORLD</span>
+            <h2>Tap a category</h2>
+          </div>
+          <div class="tap-hint">Tap once → videos open</div>
+        </div>
+        <div class="categories" id="categories"></div>
+      </section>
+    </div>
+
+    <section id="categoryView" class="category-view hidden" data-category="all">
+      <div id="categoryBanner" class="category-banner">
+        <button id="backCategories" class="back-btn" type="button">← Categories</button>
+        <div class="category-banner-content">
+          <div id="categoryBannerEmoji" class="category-banner-emoji">🌈</div>
+          <div>
+            <span class="category-kicker">YOU PICKED</span>
+            <h2 id="categoryBannerTitle">All Videos</h2>
+            <p id="categoryBannerText">Every approved video in one place.</p>
+          </div>
+        </div>
+        <div id="categoryScene" class="category-scene" aria-hidden="true"></div>
+        <div class="banner-bubbles" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
+
+      <div class="section-heading video-heading">
+        <div>
+          <span class="mini-label">READY TO WATCH?</span>
+          <h2 id="sectionTitle">Choose a video</h2>
+        </div>
+        <span id="videoCount" class="video-count"></span>
+      </div>
+
       <div class="video-grid" id="videoGrid"></div>
       <div id="emptyState" class="empty-state hidden">
         <div class="empty-icon">🎬</div>
         <h3>No videos here yet</h3>
-        <p>Ask a parent to add approved videos.</p>
+        <p>Ask a parent to add an approved video to this category.</p>
+        <button id="emptyBackBtn" class="secondary-btn" type="button">← Pick another category</button>
       </div>
     </section>
   </main>
@@ -47,17 +103,10 @@
           <strong id="playerTitle">Video</strong>
           <div id="timerLabel" class="timer-label">⏱️ Timer: Off</div>
         </div>
-        <button id="closePlayer" class="icon-btn">✕</button>
+        <button id="closePlayer" class="icon-btn" aria-label="Close video">✕</button>
       </div>
-      <div class="video-wrap">
-        <iframe
-          id="playerFrame"
-          src=""
-          title="Approved kids video"
-          frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          referrerpolicy="strict-origin-when-cross-origin"
-          allowfullscreen></iframe>
+      <div class="video-wrap" id="videoWrap">
+        <div id="playerFrame" class="youtube-player-host" aria-label="Approved kids video"></div>
       </div>
       <button id="homeBtn" class="big-home-btn">🏠 Go Home</button>
     </div>
@@ -66,8 +115,11 @@
   <div id="parentModal" class="modal hidden" aria-hidden="true">
     <div class="modal-card parent-card">
       <div class="modal-title-row">
-        <h2>Parent Mode</h2>
-        <button id="closeParent" class="icon-btn">✕</button>
+        <div>
+          <span class="mini-label">GROWN-UPS ONLY</span>
+          <h2>🔒 Parent Mode</h2>
+        </div>
+        <button id="closeParent" class="icon-btn" aria-label="Close parent mode">✕</button>
       </div>
 
       <div id="pinGate">
@@ -79,6 +131,41 @@
       </div>
 
       <div id="parentPanel" class="hidden">
+        <div class="panel-block dashboard-panel">
+          <div class="dashboard-title-row">
+            <div>
+              <span class="mini-label">VIEWING ACTIVITY</span>
+              <h3>📊 Parent Dashboard</h3>
+            </div>
+            <div class="dashboard-actions">
+              <button id="refreshStatsBtn" class="dashboard-refresh" type="button">↻ Refresh</button>
+              <button id="resetStatsBtn" class="dashboard-reset" type="button">🧹 Reset Watch History</button>
+            </div>
+          </div>
+          <div class="dashboard-grid">
+            <div class="stat-card stat-watch"><span>Today watched</span><strong id="dashTodayTime">0 min</strong><small>Resets automatically each day</small></div>
+            <div class="stat-card stat-plays"><span>Videos today</span><strong id="dashTodayPlays">0</strong><small>Videos started</small></div>
+            <div class="stat-card stat-category"><span>Top category</span><strong id="dashTopCategory">—</strong><small>Last 7 days</small></div>
+            <div class="stat-card stat-approved"><span>Approved</span><strong id="dashApproved">0</strong><small>Videos available</small></div>
+          </div>
+          <div class="dashboard-detail-grid">
+            <div class="activity-panel">
+              <div class="dashboard-subhead"><strong>Daily watch time • Last 7 days</strong><span id="dashWeekTime">0 min total</span></div>
+              <div id="activityBars" class="activity-bars"></div>
+            </div>
+            <div class="top-video-panel">
+              <span class="dashboard-icon">🏆</span>
+              <div>
+                <small>Most played video</small>
+                <strong id="dashTopVideo">No viewing yet</strong>
+                <span id="dashTopVideoMeta">Start watching to see activity.</span>
+              </div>
+            </div>
+          </div>
+          <p id="dashboardStatus" class="small-note dashboard-status">Today starts at 0 each new day. The 7-day chart keeps each day separately.</p>
+          <p class="small-note reset-note">Use <strong>Reset Watch History</strong> once you finish testing. It clears viewing statistics only — approved videos stay saved.</p>
+        </div>
+
         <div id="importBlock" class="panel-block import-box hidden">
           <h3>☁️ Move laptop videos to the cloud</h3>
           <p id="importText" class="small-note"></p>
@@ -86,7 +173,7 @@
           <p id="importMessage" class="status-text"></p>
         </div>
 
-        <div class="panel-block">
+        <div class="panel-block add-video-panel">
           <h3>➕ Add approved video</h3>
           <label>Video title
             <input id="videoTitleInput" type="text" placeholder="e.g. Learn Colours" />
@@ -116,6 +203,25 @@
         <div class="panel-block">
           <h3>🗑️ Manage approved videos</h3>
           <div id="manageList" class="manage-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="installHelpModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card install-help-card">
+      <div class="modal-title-row">
+        <div>
+          <span class="mini-label">KIDSSITE APP</span>
+          <h2>📲 Install KidsSite</h2>
+        </div>
+        <button id="closeInstallHelp" class="icon-btn" aria-label="Close install help">✕</button>
+      </div>
+      <div class="install-help-body">
+        <div class="app-icon-preview"><img src="/icon-192.png" alt="KidsSite app icon" /></div>
+        <div>
+          <p id="installHelpText">Use your browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+          <p class="small-note">Once installed, KidsSite opens like an app and still uses the same cloud-synced approved videos.</p>
         </div>
       </div>
     </div>
