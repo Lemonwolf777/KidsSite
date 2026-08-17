@@ -88,6 +88,8 @@ let ytApiReady = false;
 let ytPlayerReady = false;
 let pendingVideo = null;
 let currentVideoId = null;
+let justExitedPlayerFullscreen = false;
+let fullscreenExitGuardTimer = null;
 let currentPlayingVideo = null;
 let autoplayTimeout = null;
 let watchPlayingSince = null;
@@ -501,30 +503,29 @@ async function enterLandscapeFullscreen() {
 
 function handleFullscreenChange() {
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
-  if (fullscreenElement && !playerModal.classList.contains('hidden')) {
-    setTimeout(lockLandscape, 50);
-  } else {
-    unlockOrientation();
 
-    // On many Samsung/Android devices the first Back gesture exits fullscreen.
-    // If the video is still open, continue that same action back to its category.
-    if (
-      !playerModal.classList.contains('hidden') &&
-      history.state &&
-      history.state.kidssite &&
-      history.state.view === 'video'
-    ) {
-      setTimeout(() => {
-        if (
-          !playerModal.classList.contains('hidden') &&
-          history.state &&
-          history.state.kidssite &&
-          history.state.view === 'video'
-        ) {
-          history.back();
-        }
-      }, 30);
+  if (fullscreenElement && !playerModal.classList.contains('hidden')) {
+    justExitedPlayerFullscreen = false;
+    if (fullscreenExitGuardTimer) {
+      clearTimeout(fullscreenExitGuardTimer);
+      fullscreenExitGuardTimer = null;
     }
+    setTimeout(lockLandscape, 50);
+    return;
+  }
+
+  unlockOrientation();
+
+  // FIRST Android/Samsung Back while a video is fullscreen:
+  // leave fullscreen only and keep the same video/player screen open.
+  if (!playerModal.classList.contains('hidden')) {
+    justExitedPlayerFullscreen = true;
+
+    if (fullscreenExitGuardTimer) clearTimeout(fullscreenExitGuardTimer);
+    fullscreenExitGuardTimer = setTimeout(() => {
+      justExitedPlayerFullscreen = false;
+      fullscreenExitGuardTimer = null;
+    }, 900);
   }
 }
 
@@ -597,6 +598,15 @@ function updateTimerLabel() {
 }
 
 function openParentModal() {
+  if (!parentModal.classList.contains('hidden')) return;
+
+  // Remember Parent Mode as an in-app screen. This gives the
+  // Samsung/Android Back button somewhere to return to.
+  setKidsSiteHistory('parent', {
+    returnView: history.state && history.state.kidssite ? history.state.view : 'home',
+    returnCategory: currentCategory
+  });
+
   parentModal.classList.remove('hidden');
   parentModal.setAttribute('aria-hidden', 'false');
   $('pinInput').value = '';
@@ -606,9 +616,24 @@ function openParentModal() {
   setTimeout(() => $('pinInput').focus(), 100);
 }
 
-function closeParentModal() {
+function hideParentModal() {
   parentModal.classList.add('hidden');
   parentModal.setAttribute('aria-hidden', 'true');
+}
+
+function closeParentModal() {
+  // The X button / outside tap should behave exactly like Android Back.
+  if (
+    !parentModal.classList.contains('hidden') &&
+    history.state &&
+    history.state.kidssite &&
+    history.state.view === 'parent'
+  ) {
+    history.back();
+    return;
+  }
+
+  hideParentModal();
 }
 
 async function unlockParent() {
@@ -963,7 +988,37 @@ async function installKidsSite() {
 function handleKidsSitePopState(event) {
   const state = event.state;
 
-  // Leaving a video should close playback and return to its category.
+  // Parent Dashboard / Parent PIN screen:
+  // Back closes Parent Mode and reveals the exact KidsSite screen underneath.
+  // Do not continue into the normal navigation logic on this same Back press.
+  if (!parentModal.classList.contains('hidden')) {
+    hideParentModal();
+    return;
+  }
+
+  // Some Samsung/Android versions exit fullscreen AND fire browser Back
+  // from the same button press. Restore the video history entry so that
+  // the first Back still lands on the normal player screen.
+  if (
+    justExitedPlayerFullscreen &&
+    !playerModal.classList.contains('hidden') &&
+    (!state || state.view !== 'video')
+  ) {
+    justExitedPlayerFullscreen = false;
+    if (fullscreenExitGuardTimer) {
+      clearTimeout(fullscreenExitGuardTimer);
+      fullscreenExitGuardTimer = null;
+    }
+
+    setKidsSiteHistory('video', {
+      category: currentCategory,
+      videoId: currentPlayingVideo ? currentPlayingVideo.id : currentVideoId
+    });
+    return;
+  }
+
+  // SECOND Back from the normal player screen:
+  // close playback and return to the category list.
   if (!playerModal.classList.contains('hidden') && (!state || state.view !== 'video')) {
     closeVideo();
   }
@@ -973,7 +1028,7 @@ function handleKidsSitePopState(event) {
     return;
   }
 
-  // Home is the base state. Only another Back from here may leave the PWA.
+  // THIRD Back from a category returns to All Categories.
   showCategories({ fromHistory: true });
 }
 
