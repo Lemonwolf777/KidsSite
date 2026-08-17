@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kidssite-app-v1-7-full-category-worlds';
+const CACHE_NAME = 'kidssite-app-v1-8-android-back-navigation';
 const APP_SHELL = [
   '/',
   '/index.html',

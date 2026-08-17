@@ -183,20 +183,39 @@ function renderCategories() {
   });
 }
 
-function openCategory(categoryId) {
+function setKidsSiteHistory(view, extra = {}, { replace = false } = {}) {
+  const state = { kidssite: true, view, ...extra };
+  try {
+    if (replace) {
+      history.replaceState(state, '', window.location.href);
+    } else {
+      history.pushState(state, '', window.location.href);
+    }
+  } catch (_) {}
+}
+
+function openCategory(categoryId, { pushHistory = true } = {}) {
   currentCategory = categories.some(c => c.id === categoryId) ? categoryId : 'all';
   document.body.dataset.category = currentCategory;
   renderVideos();
   homeView.classList.add('hidden');
   categoryView.classList.remove('hidden');
+  if (pushHistory) {
+    setKidsSiteHistory('category', { category: currentCategory });
+  }
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
-function showCategories() {
+function showCategories({ fromHistory = false } = {}) {
+  if (!fromHistory && history.state && history.state.kidssite && history.state.view !== 'home') {
+    history.back();
+    return;
+  }
+
   delete document.body.dataset.category;
   categoryView.classList.add('hidden');
   homeView.classList.remove('hidden');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: fromHistory ? 'instant' : 'smooth' });
 }
 
 function renderVideos() {
@@ -265,7 +284,10 @@ window.onYouTubeIframeAPIReady = function() {
 function createYouTubePlayer(video) {
   if (!ytApiReady || !window.YT || !window.YT.Player) {
     pendingVideo = video;
-    loadYouTubeApi();
+    // Make the current PWA page the Home/base entry for Android Back navigation.
+setKidsSiteHistory('home', {}, { replace: true });
+
+loadYouTubeApi();
     return;
   }
 
@@ -344,6 +366,9 @@ function openVideo(video) {
 
   // Start the selected video from the very same tap.
   playVideoNow(video);
+
+  // Give Android/Samsung Back a real in-app destination.
+  setKidsSiteHistory('video', { category: currentCategory, videoId: video.id });
 
   if (timerMinutes > 0 && !countdownId) startCountdown();
   updateTimerLabel();
@@ -480,6 +505,26 @@ function handleFullscreenChange() {
     setTimeout(lockLandscape, 50);
   } else {
     unlockOrientation();
+
+    // On many Samsung/Android devices the first Back gesture exits fullscreen.
+    // If the video is still open, continue that same action back to its category.
+    if (
+      !playerModal.classList.contains('hidden') &&
+      history.state &&
+      history.state.kidssite &&
+      history.state.view === 'video'
+    ) {
+      setTimeout(() => {
+        if (
+          !playerModal.classList.contains('hidden') &&
+          history.state &&
+          history.state.kidssite &&
+          history.state.view === 'video'
+        ) {
+          history.back();
+        }
+      }, 30);
+    }
   }
 }
 
@@ -504,9 +549,24 @@ function closeVideo() {
   playerModal.setAttribute('aria-hidden', 'true');
 }
 
+function leaveVideo() {
+  if (history.state && history.state.kidssite && history.state.view === 'video') {
+    history.back();
+  } else {
+    closeVideo();
+  }
+}
+
 function goHomeFromPlayer() {
   closeVideo();
-  showCategories();
+
+  // A video opened from a category normally has:
+  // home -> category -> video. Go back two entries to Home.
+  if (history.state && history.state.kidssite && history.state.view === 'video') {
+    history.go(-2);
+  } else {
+    showCategories({ fromHistory: true });
+  }
 }
 
 function startCountdown() {
@@ -899,6 +959,26 @@ async function installKidsSite() {
   showInstallHelp();
 }
 
+// ---------- Android / Samsung hardware Back navigation ----------
+function handleKidsSitePopState(event) {
+  const state = event.state;
+
+  // Leaving a video should close playback and return to its category.
+  if (!playerModal.classList.contains('hidden') && (!state || state.view !== 'video')) {
+    closeVideo();
+  }
+
+  if (state && state.kidssite && state.view === 'category') {
+    openCategory(state.category || 'all', { pushHistory: false });
+    return;
+  }
+
+  // Home is the base state. Only another Back from here may leave the PWA.
+  showCategories({ fromHistory: true });
+}
+
+window.addEventListener('popstate', handleKidsSitePopState);
+
 window.addEventListener('beforeinstallprompt', event => {
   event.preventDefault();
   deferredInstallPrompt = event;
@@ -929,7 +1009,7 @@ $('addVideoBtn').addEventListener('click', addVideo);
 $('importVideosBtn').addEventListener('click', importLegacyVideos);
 $('refreshStatsBtn').addEventListener('click', loadDashboard);
 $('resetStatsBtn').addEventListener('click', resetWatchHistory);
-$('closePlayer').addEventListener('click', closeVideo);
+$('closePlayer').addEventListener('click', leaveVideo);
 $('backCategories').addEventListener('click', showCategories);
 $('emptyBackBtn').addEventListener('click', showCategories);
 if (landscapeFullscreenBtn) landscapeFullscreenBtn.addEventListener('click', enterLandscapeFullscreen);
