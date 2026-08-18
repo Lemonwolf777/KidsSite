@@ -90,6 +90,7 @@ let pendingVideo = null;
 let currentVideoId = null;
 let justExitedPlayerFullscreen = false;
 let fullscreenExitGuardTimer = null;
+let homeGuardReturning = false;
 let currentPlayingVideo = null;
 let autoplayTimeout = null;
 let watchPlayingSince = null;
@@ -196,23 +197,68 @@ function setKidsSiteHistory(view, extra = {}, { replace = false } = {}) {
   } catch (_) {}
 }
 
+const HOME_GUARD_DEPTH = 24;
+
 function initialiseKidsSiteHomeGuard() {
   try {
-    history.replaceState({ kidssite: true, view: 'home-root' }, '', window.location.href);
-    history.pushState({ kidssite: true, view: 'home' }, '', window.location.href);
+    // Build the protection BEFORE the child starts using the app.
+    // This avoids relying on pushState after each Back press, which can be
+    // too slow when Samsung/Android Back is pressed repeatedly while pinned.
+    history.replaceState(
+      { kidssite: true, view: 'home-guard', guardIndex: 0 },
+      '',
+      window.location.href
+    );
+
+    for (let i = 1; i < HOME_GUARD_DEPTH; i++) {
+      history.pushState(
+        { kidssite: true, view: 'home-guard', guardIndex: i },
+        '',
+        window.location.href
+      );
+    }
+
+    history.pushState(
+      { kidssite: true, view: 'home', guardIndex: HOME_GUARD_DEPTH },
+      '',
+      window.location.href
+    );
   } catch (_) {}
 }
 
-function rearmKidsSiteHomeGuard() {
-  try {
-    history.pushState({ kidssite: true, view: 'home' }, '', window.location.href);
-  } catch (_) {}
-
-  // Make absolutely sure the child remains on the main KidsSite page.
+function showProtectedHome() {
   delete document.body.dataset.category;
   categoryView.classList.add('hidden');
   homeView.classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function returnToProtectedHomeTop(state) {
+  showProtectedHome();
+
+  if (homeGuardReturning) return;
+  homeGuardReturning = true;
+
+  // If Back moved into one of the pre-built guard entries, jump straight
+  // back to the protected Home entry. We use the stored guard index so
+  // even multiple rapid Back presses can be recovered in one move.
+  if (
+    state &&
+    state.kidssite &&
+    state.view === 'home-guard' &&
+    Number.isInteger(state.guardIndex)
+  ) {
+    const stepsForward = HOME_GUARD_DEPTH - state.guardIndex;
+    if (stepsForward > 0) {
+      try {
+        history.go(stepsForward);
+      } catch (_) {}
+    }
+  }
+
+  setTimeout(() => {
+    homeGuardReturning = false;
+  }, 220);
 }
 
 function openCategory(categoryId, { pushHistory = true } = {}) {
@@ -1004,13 +1050,12 @@ async function installKidsSite() {
 function handleKidsSitePopState(event) {
   const state = event.state;
 
-  // PROTECTED HOME BOUNDARY:
-  // On the main All Categories page, Samsung/Android Back must NOT
-  // navigate out of the installed PWA. This is especially important
-  // while Android Screen Pinning is active, where attempting to leave
-  // can strand Chrome/PWA on its launch splash/logo screen.
-  if (state && state.kidssite && state.view === 'home-root') {
-    rearmKidsSiteHomeGuard();
+  // STRONG PROTECTED HOME BOUNDARY:
+  // All of these history entries are already created when KidsSite starts.
+  // Back on All Categories therefore stays inside same-document history,
+  // even if the child taps Back several times quickly while the app is pinned.
+  if (state && state.kidssite && state.view === 'home-guard') {
+    returnToProtectedHomeTop(state);
     return;
   }
 
@@ -1058,9 +1103,8 @@ function handleKidsSitePopState(event) {
     return;
   }
 
-  // Safety fallback: if Android/Chrome gives us an unexpected history
-  // state while KidsSite is open, keep the child on All Categories.
-  rearmKidsSiteHomeGuard();
+  // Safety fallback: keep the child on All Categories.
+  showProtectedHome();
 }
 
 window.addEventListener('popstate', handleKidsSitePopState);
