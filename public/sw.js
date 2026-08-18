@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kidssite-app-v1-10-parent-back-navigation';
+const CACHE_NAME = 'kidssite-app-v1-11-pinned-home-back-guard';
 const APP_SHELL = [
   '/',
   '/index.html',

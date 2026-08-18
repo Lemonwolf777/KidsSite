@@ -196,6 +196,25 @@ function setKidsSiteHistory(view, extra = {}, { replace = false } = {}) {
   } catch (_) {}
 }
 
+function initialiseKidsSiteHomeGuard() {
+  try {
+    history.replaceState({ kidssite: true, view: 'home-root' }, '', window.location.href);
+    history.pushState({ kidssite: true, view: 'home' }, '', window.location.href);
+  } catch (_) {}
+}
+
+function rearmKidsSiteHomeGuard() {
+  try {
+    history.pushState({ kidssite: true, view: 'home' }, '', window.location.href);
+  } catch (_) {}
+
+  // Make absolutely sure the child remains on the main KidsSite page.
+  delete document.body.dataset.category;
+  categoryView.classList.add('hidden');
+  homeView.classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
 function openCategory(categoryId, { pushHistory = true } = {}) {
   currentCategory = categories.some(c => c.id === categoryId) ? categoryId : 'all';
   document.body.dataset.category = currentCategory;
@@ -286,10 +305,7 @@ window.onYouTubeIframeAPIReady = function() {
 function createYouTubePlayer(video) {
   if (!ytApiReady || !window.YT || !window.YT.Player) {
     pendingVideo = video;
-    // Make the current PWA page the Home/base entry for Android Back navigation.
-setKidsSiteHistory('home', {}, { replace: true });
-
-loadYouTubeApi();
+    loadYouTubeApi();
     return;
   }
 
@@ -988,9 +1004,18 @@ async function installKidsSite() {
 function handleKidsSitePopState(event) {
   const state = event.state;
 
+  // PROTECTED HOME BOUNDARY:
+  // On the main All Categories page, Samsung/Android Back must NOT
+  // navigate out of the installed PWA. This is especially important
+  // while Android Screen Pinning is active, where attempting to leave
+  // can strand Chrome/PWA on its launch splash/logo screen.
+  if (state && state.kidssite && state.view === 'home-root') {
+    rearmKidsSiteHomeGuard();
+    return;
+  }
+
   // Parent Dashboard / Parent PIN screen:
   // Back closes Parent Mode and reveals the exact KidsSite screen underneath.
-  // Do not continue into the normal navigation logic on this same Back press.
   if (!parentModal.classList.contains('hidden')) {
     hideParentModal();
     return;
@@ -1028,8 +1053,14 @@ function handleKidsSitePopState(event) {
     return;
   }
 
-  // THIRD Back from a category returns to All Categories.
-  showCategories({ fromHistory: true });
+  if (state && state.kidssite && state.view === 'home') {
+    showCategories({ fromHistory: true });
+    return;
+  }
+
+  // Safety fallback: if Android/Chrome gives us an unexpected history
+  // state while KidsSite is open, keep the child on All Categories.
+  rearmKidsSiteHomeGuard();
 }
 
 window.addEventListener('popstate', handleKidsSitePopState);
@@ -1081,6 +1112,7 @@ playerModal.addEventListener('click', e => { if (e.target === playerModal) close
 window.addEventListener('pagehide', () => finishWatchSession());
 parentModal.addEventListener('click', e => { if (e.target === parentModal) closeParentModal(); });
 
+initialiseKidsSiteHomeGuard();
 loadYouTubeApi();
 populateCategorySelect();
 renderCategories();
